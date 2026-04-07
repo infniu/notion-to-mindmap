@@ -53,7 +53,7 @@ pip install beautifulsoup4
 
 页面层级对应：
 - Level 0：根节点（工作空间名称）
-- Level 1：5 个一级页面（00_收件箱、01_项目、02_领域、03_资源、04_归档 等）
+- Level 1：一级页面（Notion 导出的顶层页面）
 - Level 2+：逐级展开
 
 脚本会自动跳过 CSV 数据库条目，并从 `<ul id>` 中提取真实的 32 位页面 UUID。
