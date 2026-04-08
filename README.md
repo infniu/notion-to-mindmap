@@ -1,6 +1,6 @@
 # Notion Mind Map
 
-[Live Demo](https://infniu.github.io/notion-to-mindmap/) | [Qoder Skill](https://clawhub.ai) | [GitHub](https://github.com/infniu/notion-to-mindmap)
+[Live Demo](https://infniu.github.io/notion-to-mindmap/)
 
 ---
 
