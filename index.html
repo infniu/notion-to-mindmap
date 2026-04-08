@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Notion Export - 思维导图</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html,body { width:100%; height:100%; overflow:hidden; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif; background:#1a1a2e; color:#e0e0e0; }
+#toolbar { position:fixed; top:0; left:0; right:0; height:48px; background:#16213e; border-bottom:1px solid #2a2a4a; display:flex; align-items:center; padding:0 16px; gap:10px; z-index:1000; user-select:none; }
+#toolbar .btn { padding:6px 14px; background:#2a2a4a; color:#c0c0d0; border:1px solid #3a3a5a; border-radius:6px; cursor:pointer; font-size:12px; white-space:nowrap; transition:background .15s; }
+#toolbar .btn:hover { background:#3a3a5a; color:#fff; }
+#toolbar .sep { width:1px; height:24px; background:#2a2a4a; }
+#search-box { padding:5px 10px; background:#0f0f23; border:1px solid #3a3a5a; border-radius:6px; color:#e0e0e0; font-size:12px; width:200px; outline:none; }
+#search-box:focus { border-color:#667eea; }
+#search-box::placeholder { color:#555; }
+#stats { font-size:11px; color:#888; margin-left:auto; white-space:nowrap; }
+#canvas-wrap { position:absolute; top:48px; left:0; right:0; bottom:0; overflow:hidden; cursor:grab; }
+#canvas-wrap.grabbing { cursor:grabbing; }
+canvas { display:block; }
+#zoom-indicator { position:fixed; bottom:16px; right:16px; background:#16213e; border:1px solid #2a2a4a; border-radius:6px; padding:4px 10px; font-size:11px; color:#888; z-index:1000; user-select:none; }
+#ctx-menu { position:fixed; display:none; background:#1e1e3a; border:1px solid #3a3a5a; border-radius:8px; padding:4px 0; min-width:180px; box-shadow:0 8px 32px rgba(0,0,0,.6); z-index:2000; font-size:13px; }
+.ctx-item { padding:8px 16px; cursor:pointer; color:#d0d0e0; transition:background .1s; }
+.ctx-item:hover { background:#2a2a4a; }
+#tooltip { position:fixed; display:none; background:#1e1e3a; border:1px solid #3a3a5a; border-radius:6px; padding:4px 10px; font-size:11px; color:#aaa; z-index:1500; pointer-events:none; white-space:nowrap; }
+#footer { position:fixed; bottom:12px; left:16px; font-size:11px; color:#555; z-index:1000; user-select:none; }
+#footer a { color:#555; text-decoration:none; transition:color .15s; }
+#footer a:hover { color:#667eea; }
+</style>
+</head>
+<body>
+<div id="toolbar">
+  <div class="btn" id="btn-reset">重置</div>
+  <div class="btn" id="btn-fit">适应屏幕</div>
+  <div class="btn" id="btn-expand">展开全部</div>
+  <div class="btn" id="btn-collapse">折叠全部</div>
+  <div class="sep"></div>
+  <input type="text" id="search-box" placeholder="搜索页面... (Ctrl+F)">
+  <div id="stats"></div>
+</div>
+<div id="canvas-wrap"><canvas id="cv"></canvas></div>
+<div id="zoom-indicator">100%</div>
+<div id="ctx-menu">
+  <div class="ctx-item" id="ctx-copy">复制 Notion 链接</div>
+  <div class="ctx-item" id="ctx-focus">聚焦此页面</div>
+</div>
+<div id="tooltip"></div>
+<script>
+"use strict";
+const RAW = {"t":"Notion Export","id":null,"l":null,"c":[{"t":"工作","id":"98425a5ddd0c4208a050b84987d81a40","l":null,"c":[{"t":"睡眠","id":"5bbe1f1ac59d4a7987b29a68d4eea9fb","l":null,"c":[{"t":"计划","id":"e87090e95e064b32ae2e90d7cb7dd409","l":null},{"t":"待办","id":"d5e4977c0eba4e6a9a5f33c472aeb5cd","l":null,"c":[{"t":"待办","id":"532c206583ff4134ab3824c6dcdeef68","l":null},{"t":"参考","id":"2a7915d8f511405e901fdb6dd1bfb743","l":null}]}]},{"t":"电影","id":"c1df2eb4ec68493384b0e6b00a6472dd","l":null,"c":[{"t":"待办","id":"de1dc07700414e53ad8f329a1085cf8c","l":null},{"t":"参考","id":"061613c659284cb29d76b41d1a2bd2ad","l":null,"c":[{"t":"计划","id":"1b9e4812f8f64a419b0e3dafa83db0d4","l":null},{"t":"模板","id":"85ddec209c1149f797a597c213ac9ebc","l":null}]}]},{"t":"心理","id":"a82f28497f15427686076ce0b054c05b","l":null,"c":[{"t":"计划","id":"54f1e0a6ef6742e2bbd4af1b08ce3298","l":null,"c":[{"t":"待办","id":"5836052e5899427e8e4fb526758d0bdd","l":null}]},{"t":"计划","id":"2a22772b018a4c49824aab67b09a47ae","l":null,"c":[{"t":"记录","id":"65e92516f4644638a2d8891d92e718f4","l":null}]},{"t":"计划","id":"1aa5ff5b676f4847a3f85e56eb551a83","l":null}]}]},{"t":"学习","id":"437d80f91f3d4486a320f631bbbc4195","l":null,"c":[{"t":"会议","id":"90f5e488e4334ee5829a9f34c13779a0","l":null,"c":[{"t":"记录","id":"91ee10caee724680ad588f0edccb3ef6","l":null,"c":[{"t":"记录","id":"c5b56eb48ede4e40b238cdce8583d03d","l":null},{"t":"待办","id":"11606ff7ca61427c850924a06d648660","l":null}]},{"t":"模板","id":"a7dc1aaf137c4285aae4501557d80169","l":null}]},{"t":"电影","id":"85c3f568c4fb4470a62121d71e7aaffe","l":null,"c":[{"t":"记录","id":"6482f0c482bb4f21aca03de7f2a8db6d","l":null,"c":[{"t":"记录","id":"9eae0066dd794d948dabba741d9ce1f7","l":null},{"t":"参考","id":"0bddf673f41c44b687d4c7deab48833d","l":null}]},{"t":"计划","id":"9a5cabf56b364bb2a708c52eafc623d4","l":null},{"t":"模板","id":"34d679423a974687b170d45823edda37","l":null},{"t":"记录","id":"d054f470067b4933942c37cdd23cb5c3","l":null}]},{"t":"会议","id":"7e865e368ceb4784b9b35078df308f20","l":null,"c":[{"t":"总结","id":"6084714d9bf1433a951edab0fa45bb17","l":null,"c":[{"t":"计划","id":"22eea8bd8a724849ad14ff66d78a0f98","l":null}]},{"t":"记录","id":"e10e4df82ce24315812545838cfede36","l":null},{"t":"模板","id":"d86839e637c9455c8978c3c046ef1cdb","l":null}]}]},{"t":"健康","id":"ff41766585924293a3bef09e08ac388a","l":null,"c":[{"t":"招聘","id":"88b9a36478ca45fe9b0e65f72ff086f8","l":null,"c":[{"t":"计划","id":"01bc0f1281a04fdc8df96c5d2fc68cde","l":null},{"t":"计划","id":"06bdc500b7394232b1640541ce50ab48","l":null,"c":[{"t":"模板","id":"8d5818a136ba4e1393561430f95251c1","l":null}]},{"t":"模板","id":"9fa45c6c51e846c2a1e349938de67dc1","l":null,"c":[{"t":"记录","id":"a27255fe537d4cd79941dff07d978e0d","l":null},{"t":"待办","id":"6bb01f4571844aca8891461cb659c20d","l":null}]},{"t":"计划","id":"31e913e6332d47e0bd31aab5a5a2d2e5","l":null,"c":[{"t":"总结","id":"79e795e94fed4535b311835e84d64ee3","l":null}]}]},{"t":"读书","id":"c1047abc01604551b3c355771ec4563d","l":null,"c":[{"t":"参考","id":"3aab1a08871b4606a90e6a1257ab9595","l":null,"c":[{"t":"计划","id":"3120f5ffb6e84ca7aeed6a0bf5d924f2","l":null}]},{"t":"模板","id":"d559e0043165411ab48d66eae43a2eaa","l":null,"c":[{"t":"总结","id":"8a385cd431674889b756f98df8cc45ca","l":null},{"t":"计划","id":"03b6fceef877454b802975e33d8b1f99","l":null}]}]},{"t":"课程","id":"84c07987817341ba961f0bf74830b51f","l":null,"c":[{"t":"模板","id":"a644469f01d54c6c9b1e1af37f4cd3a4","l":null,"c":[{"t":"模板","id":"5f9a166c6d1d47628582d6bceca1d4e7","l":null}]},{"t":"参考","id":"30a53bb4339341b39be8f1f7eb2483fc","l":null,"c":[{"t":"总结","id":"89c2b0e7f56c4e62b6498ba69e5d383b","l":null},{"t":"记录","id":"0ef526ea246f4f40b20e42110f4b521b","l":null}]}]},{"t":"餐饮","id":"71ee131bfcb94e15bac396b2552db681","l":null,"c":[{"t":"总结","id":"5e771e4c83154a7db8d7ac67bd0bc12e","l":null},{"t":"待办","id":"4bbe45fbe2cf45b883968790565213bd","l":null},{"t":"模板","id":"bdeff11e3f07463292972495541a119e","l":null},{"t":"模板","id":"38c6f53976484057928c82c09445ad53","l":null}]},{"t":"旅游","id":"7ce867adf7ac41098400ca26d27c0bd0","l":null,"c":[{"t":"总结","id":"e15ff1ced7f6485782dc7dcc239c0e91","l":null,"c":[{"t":"待办","id":"260da6fa9591479a9f94dda865a29eee","l":null},{"t":"模板","id":"dfd1aeb0258b4ea4a93b8c15d97f3f06","l":null}]},{"t":"模板","id":"d377ef6b63c4464eb486f2a6058519a1","l":null},{"t":"参考","id":"a622ae2ec5f84f268349bc1ef6c43e84","l":null,"c":[{"t":"记录","id":"45a40d13b16a40089c70ccce9f835727","l":null},{"t":"待办","id":"65e9596220664904ac032697d91d4931","l":null}]},{"t":"记录","id":"5de00d8422e34eb39ea6669373495d28","l":null,"c":[{"t":"待办","id":"646761a353ae42d2b21518b065f97aff","l":null}]}]}]},{"t":"健康","id":"8b6c92ad33dd48e3a83ade8f978a3c81","l":null,"c":[{"t":"技能","id":"429906321f554e5b8e5fcddc47ea226b","l":null,"c":[{"t":"参考","id":"feb659e137e64c6e9f90879b64d18e5b","l":null,"c":[{"t":"记录","id":"f67749c9e5284934bca3abe8388b88a4","l":null},{"t":"模板","id":"26ec251efa1a41ba8eb54f1ff8677102","l":null}]},{"t":"参考","id":"0173e3f03e5f45b0ba70432df6942479","l":null}]},{"t":"课程","id":"5b530ad56fff4dff81f1ec09939f9e33","l":null,"c":[{"t":"参考","id":"25088250ab564c3dafd229ef57ab2f38","l":null,"c":[{"t":"记录","id":"7ec5fc4c0aa642c9ae3c83e88cf8a1bf","l":null},{"t":"总结","id":"059b9c0269104269b441a7a34d8bfced","l":null}]},{"t":"待办","id":"d9cd4bac5651463199226a040a38b694","l":null},{"t":"记录","id":"5479a03155104537bee1af6b478f3162","l":null,"c":[{"t":"计划","id":"22b6ff4f850d4854b34ecc47cb1fa66b","l":null}]},{"t":"待办","id":"2519627f57a3494785887efc5afb45e6","l":null}]},{"t":"预算","id":"c14a73c21dd146ea9db42b6177b4ee04","l":null,"c":[{"t":"模板","id":"d512b4055b80491d82353d5274bf2677","l":null},{"t":"参考","id":"ba42ffe3e7064cbea24dae292bcab80b","l":null}]},{"t":"体检","id":"079112e3f4324b46be957a70992d8d5b","l":null,"c":[{"t":"计划","id":"497c2053d79745daacc0e1ae71c9eb88","l":null},{"t":"参考","id":"a40208850839474fbe6a12b561fc2209","l":null},{"t":"参考","id":"8723542b4fff4308a7fe6aa34332a3d6","l":null,"c":[{"t":"计划","id":"23db4ff996854f18b202b1b2b3c913c7","l":null},{"t":"模板","id":"847ffbe327f5407bb935c96c6bd53f7f","l":null}]},{"t":"记录","id":"c04ceaa9c8a34d6bad2753cacf539f28","l":null}]},{"t":"睡眠","id":"b17fb5aa9ef642dea157ab5806a3cb16","l":null,"c":[{"t":"参考","id":"c9e65c4da060421a8774f45462b6acf5","l":null},{"t":"计划","id":"c922c2e553e140bbbb0b3d70307107ef","l":null},{"t":"待办","id":"c87f74ad14f64df181a3477cb36421de","l":null}]}]},{"t":"财务","id":"866c1c8f541f4389ac5f60c0cbe8b218","l":null,"c":[{"t":"项目","id":"07de60dffef9451487a5a2dc111611a2","l":null,"c":[{"t":"模板","id":"4eaf348dcda7423a8792c497744aad47","l":null},{"t":"待办","id":"c7d3c17de1be409ab93574f8b0622a1c","l":null,"c":[{"t":"待办","id":"1fa445abc3744c45808e158235501acc","l":null}]},{"t":"参考","id":"c00158a8992242f895c9f4d800b4d997","l":null},{"t":"模板","id":"219899e0a82848b5885655abfb48c6df","l":null,"c":[{"t":"计划","id":"632b30caf47e49308f322378603d487a","l":null},{"t":"模板","id":"b2d23a2338b849a19819f33657399c96","l":null}]}]},{"t":"税务","id":"20621a2d6c604fa5818dfb3f04cf8b6b","l":null,"c":[{"t":"计划","id":"47bde3306ae447d0a62dfe3da3863f0c","l":null,"c":[{"t":"计划","id":"b19a57ca92fa44d1b3bd290ad3cf6b45","l":null}]},{"t":"待办","id":"536782cd27b04ca5b78186b2539f376a","l":null},{"t":"总结","id":"71574736ab174605bb128e11af8a66ac","l":null}]},{"t":"旅游","id":"3e3f75386b6846c2af6f8dc8c59a315a","l":null,"c":[{"t":"待办","id":"ddf3c46bee124978b4c3231375aa3cf4","l":null,"c":[{"t":"待办","id":"9857f22302c54193955873b8999b5219","l":null},{"t":"待办","id":"ec2f46fc670447df9201e26b2fc72ff7","l":null}]},{"t":"总结","id":"37d209715be540128af11ea1f4cd6ac7","l":null},{"t":"计划","id":"45a9354f406945928030cf2c475a4817","l":null},{"t":"参考","id":"5686bef8d5ef4256ab910f269686dc95","l":null,"c":[{"t":"计划","id":"cb07ba0e2c73463c83b5a6e258fba64f","l":null}]}]}]},{"t":"学习","id":"9aaa9174491842f7aadd1668da17362b","l":null,"c":[{"t":"购物","id":"1db8992a75114967a35c5e54f2957dbd","l":null,"c":[{"t":"参考","id":"792653ad059a42fab26e79c3d82ff69d","l":null},{"t":"模板","id":"199ca2eafbd1486b8de61b2c0eb4ebed","l":null},{"t":"待办","id":"2e7086198c8e490eb56935d90f1e0283","l":null}]},{"t":"家居","id":"f5ba29cd6f644ca4bfea3fee08ed1fb5","l":null,"c":[{"t":"总结","id":"0567f7494eb2405f82fd820f16fdbfdd","l":null},{"t":"总结","id":"8446ae0f027344148e6bceed0f23f3f2","l":null},{"t":"总结","id":"c8925399545b45019f4da1b3883a87d0","l":null}]},{"t":"游戏","id":"b93fe1e5839d44d98bee08fdcecdc9c7","l":null,"c":[{"t":"记录","id":"6f53947c26e14b0da92b5ffe13dd1287","l":null,"c":[{"t":"参考","id":"1166b8c063b24accb8eb6aba03b546a1","l":null},{"t":"模板","id":"b0681332fee84466b22eff47a4a31c44","l":null}]},{"t":"模板","id":"0b04c3738c694bfdb9079a03afe62629","l":null},{"t":"记录","id":"95d7289028df4453adc0f0fe56bcc447","l":null}]},{"t":"招聘","id":"666fccf2ab3e4357be62956aef3f5db9","l":null,"c":[{"t":"参考","id":"bf85797a704a454193cd007dbfcd2943","l":null},{"t":"记录","id":"f589bcc1fd974b2b9157144d59eebadc","l":null},{"t":"参考","id":"d31ebbe66f3044038264dffc635b8c0d","l":null,"c":[{"t":"计划","id":"542f6f6667de40f79459aa055b252ef2","l":null},{"t":"待办","id":"ee650385610147d4a69f3e0c27412df4","l":null}]},{"t":"参考","id":"edcf191080464021ac75d15210b6833e","l":null}]}]}]};
+const NODE_H = 28;
+const NODE_PAD_X = 14;
+const NODE_GAP_Y = 4;
+const LEVEL_GAP_X = 220;
+const FONT = '13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+const FONT_BOLD = 'bold 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+const BRANCH_COLORS = [
+  "#667eea","#43b581","#faa61a","#f47b67","#b967ff",
+  "#2ee4d6","#ff6b9d","#c4e538","#6c9eff","#ff9f43",
+  "#a29bfe","#fd79a8","#00cec9","#fdcb6e","#e17055"
+];
+
+let nodes = [];
+let rootNode = null;
+
+function buildTree(raw, parent, depth) {
+  const n = {
+    id: raw.id,
+    title: raw.t,
+    link: raw.l,
+    depth: depth,
+    parent: parent,
+    children: [],
+    _children: null,
+    expanded: depth < 2,
+    x: 0, y: 0,
+    w: 0,
+    branchColor: null,
+    subtreeH: 0,
+    descendantCount: 0
+  };
+  nodes.push(n);
+  if (raw.c) {
+    for (const ch of raw.c) {
+      const child = buildTree(ch, n, depth + 1);
+      n.children.push(child);
+    }
+  }
+  n.descendantCount = countDesc(n);
+  if (depth >= 2 && n.children.length > 0) {
+    n._children = n.children;
+    n.children = [];
+    n.expanded = false;
+  }
+  return n;
+}
+
+function countDesc(n) {
+  let c = 0;
+  const ch = n._children || n.children;
+  for (const x of ch) { c += 1 + countDesc(x); }
+  return c;
+}
+
+function hasAnyChildren(n) {
+  return (n.children && n.children.length > 0) || (n._children && n._children.length > 0);
+}
+
+function assignColors(root) {
+  root.branchColor = "#e0e0e0";
+  const L1 = root._children || root.children;
+  for (let i = 0; i < L1.length; i++) {
+    L1[i].branchColor = BRANCH_COLORS[i % BRANCH_COLORS.length];
+    assignChildColors(L1[i]);
+  }
+}
+
+function assignChildColors(n) {
+  const ch = n._children || n.children;
+  if (n.depth === 1) {
+    for (let i = 0; i < ch.length; i++) {
+      ch[i].branchColor = varyColor(n.branchColor, i, ch.length);
+      assignChildColors(ch[i]);
+    }
+  } else {
+    for (const c of ch) {
+      c.branchColor = n.branchColor;
+      assignChildColors(c);
+    }
+  }
+}
+
+function varyColor(hex, idx, total) {
+  let r = parseInt(hex.slice(1,3),16);
+  let g = parseInt(hex.slice(3,5),16);
+  let b = parseInt(hex.slice(5,7),16);
+  const factor = 0.7 + 0.6 * (idx / Math.max(total, 1));
+  r = Math.min(255, Math.round(r * factor));
+  g = Math.min(255, Math.round(g * factor));
+  b = Math.min(255, Math.round(b * factor));
+  const toHex = v => v.toString(16).padStart(2,"0");
+  return "#" + toHex(r) + toHex(g) + toHex(b);
+}
+
+let mCtx;
+function measureText(text) {
+  mCtx.font = FONT;
+  return mCtx.measureText(text).width;
+}
+
+function layout(root) {
+  computeWidths(root);
+  computeSubtreeHeight(root);
+  positionNode(root, 60, 0);
+}
+
+function computeWidths(n) {
+  n.w = measureText(n.title) + NODE_PAD_X * 2 + (hasAnyChildren(n) ? 20 : 0);
+  for (const c of n.children) computeWidths(c);
+}
+
+function computeSubtreeHeight(n) {
+  if (n.children.length === 0) { n.subtreeH = NODE_H; return NODE_H; }
+  let total = 0;
+  for (const c of n.children) { total += computeSubtreeHeight(c); }
+  total += (n.children.length - 1) * NODE_GAP_Y;
+  n.subtreeH = Math.max(NODE_H, total);
+  return n.subtreeH;
+}
+
+function positionNode(n, x, yCenter) {
+  n.x = x; n.y = yCenter;
+  if (n.children.length === 0) return;
+  const childX = x + LEVEL_GAP_X;
+  let startY = yCenter - n.subtreeH / 2;
+  for (const c of n.children) {
+    computeSubtreeHeight(c);
+    positionNode(c, childX, startY + c.subtreeH / 2);
+    startY += c.subtreeH + NODE_GAP_Y;
+  }
+}
+
+function toggleNode(n) {
+  if (n._children) { n.children = n._children; n._children = null; n.expanded = true; }
+  else if (n.children.length > 0) { n._children = n.children; n.children = []; n.expanded = false; }
+  layout(rootNode);
+  render();
+}
+
+function expandAll(n) {
+  if (n._children) { n.children = n._children; n._children = null; n.expanded = true; }
+  for (const c of n.children) expandAll(c);
+}
+
+function collapseToLevel(n, maxLevel) {
+  const allCh = n._children || n.children;
+  if (n.depth < maxLevel) {
+    n.children = allCh; n._children = null; n.expanded = true;
+    for (const c of n.children) collapseToLevel(c, maxLevel);
+  } else {
+    if (allCh.length > 0) {
+      for (const c of allCh) collapseToLevel(c, maxLevel);
+      n._children = allCh; n.children = []; n.expanded = false;
+    }
+  }
+}
+
+let camX = 0, camY = 0, zoom = 1.0;
+let cvs, ctx;
+let W, H;
+
+function render() {
+  const dpr = window.devicePixelRatio || 1;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  ctx.save();
+  ctx.translate(W/2, H/2);
+  ctx.scale(zoom, zoom);
+  ctx.translate(-camX, -camY);
+  drawLinks(rootNode);
+  drawNodes(rootNode);
+  drawSearchHighlights();
+  ctx.restore();
+  document.getElementById("zoom-indicator").textContent = Math.round(zoom * 100) + "%";
+}
+
+function drawLinks(n) {
+  for (const c of n.children) {
+    const x1 = n.x + n.w, y1 = n.y;
+    const x2 = c.x, y2 = c.y;
+    const cpx = (x1 + x2) / 2;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.bezierCurveTo(cpx, y1, cpx, y2, x2, y2);
+    ctx.strokeStyle = c.branchColor || "#555";
+    ctx.globalAlpha = 0.5;
+    ctx.lineWidth = Math.max(1, 2.5 - n.depth * 0.3);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    drawLinks(c);
+  }
+}
+
+function drawNodes(n) {
+  const isLeaf = !hasAnyChildren(n);
+  const nh = NODE_H, nx = n.x, ny = n.y - nh / 2;
+  if (!isLeaf) {
+    ctx.beginPath();
+    roundRect(ctx, nx, ny, n.w, nh, 6);
+    ctx.fillStyle = n.branchColor || "#667eea";
+    ctx.globalAlpha = n.depth === 0 ? 0.3 : 0.15;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = n.branchColor || "#667eea";
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = 0.6;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  } else {
+    ctx.beginPath();
+    ctx.moveTo(nx, n.y + nh/2 - 1);
+    ctx.lineTo(nx + n.w, n.y + nh/2 - 1);
+    ctx.strokeStyle = n.branchColor || "#555";
+    ctx.globalAlpha = 0.25;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  ctx.font = n.depth <= 1 ? FONT_BOLD : FONT;
+  ctx.fillStyle = n.branchColor || "#e0e0e0";
+  ctx.globalAlpha = isLeaf ? 0.85 : 1;
+  ctx.textBaseline = "middle";
+  ctx.fillText(n.title, nx + NODE_PAD_X, n.y);
+  ctx.globalAlpha = 1;
+  if (hasAnyChildren(n)) {
+    ctx.font = "10px sans-serif";
+    ctx.fillStyle = n.branchColor || "#888";
+    ctx.globalAlpha = 0.7;
+    ctx.fillText(n.expanded ? "\u25C0" : "\u25B6", nx + n.w - 16, n.y);
+    ctx.globalAlpha = 1;
+  }
+  for (const c of n.children) drawNodes(c);
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+let searchResults = [];
+let searchIdx = -1;
+
+function doSearch(query) {
+  searchResults = []; searchIdx = -1;
+  if (!query) { render(); return; }
+  const q = query.toLowerCase();
+  for (const n of nodes) { if (n.title.toLowerCase().includes(q)) searchResults.push(n); }
+  if (searchResults.length > 0) {
+    searchIdx = 0;
+    collapseAllExceptPaths(searchResults);
+    for (const r of searchResults) { expandPathTo(r); }
+    layout(rootNode);
+    focusOnNode(searchResults[0]);
+  }
+  render();
+}
+
+function collapseAllExceptPaths(results) {
+  const pathNodes = new Set();
+  for (const r of results) {
+    let cur = r.parent;
+    while (cur) { pathNodes.add(cur); cur = cur.parent; }
+    pathNodes.add(r);
+  }
+  function walk(n) {
+    if (!pathNodes.has(n)) {
+      const allCh = n._children || n.children;
+      if (allCh.length > 0 && n.children.length > 0) {
+        n._children = n.children; n.children = []; n.expanded = false;
+      }
+    }
+    const ch = n._children || n.children;
+    for (const c of ch) walk(c);
+  }
+  walk(rootNode);
+}
+
+function expandPathTo(n) {
+  const path = [];
+  let cur = n.parent;
+  while (cur) { path.unshift(cur); cur = cur.parent; }
+  for (const p of path) { if (p._children) { p.children = p._children; p._children = null; p.expanded = true; } }
+}
+
+function drawSearchHighlights() {
+  for (let i = 0; i < searchResults.length; i++) {
+    const n = searchResults[i];
+    ctx.beginPath();
+    roundRect(ctx, n.x - 2, n.y - NODE_H/2 - 2, n.w + 4, NODE_H + 4, 8);
+    ctx.strokeStyle = i === searchIdx ? "#ffd700" : "#ffa500";
+    ctx.lineWidth = i === searchIdx ? 3 : 1.5;
+    ctx.globalAlpha = i === searchIdx ? 1 : 0.6;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+}
+
+function nextSearchResult() {
+  if (searchResults.length === 0) return;
+  searchIdx = (searchIdx + 1) % searchResults.length;
+  collapseAllExceptPaths(searchResults);
+  for (const r of searchResults) { expandPathTo(r); }
+  layout(rootNode);
+  focusOnNode(searchResults[searchIdx]);
+  render();
+}
+
+let dragging = false;
+let dragStartX, dragStartY, camStartX, camStartY;
+let hoveredNode = null;
+let ctxTarget = null;
+
+function hitTest(sx, sy) {
+  const wx = (sx - W/2) / zoom + camX;
+  const wy = (sy - H/2) / zoom + camY;
+  return hitTestNode(rootNode, wx, wy);
+}
+
+function hitTestNode(n, wx, wy) {
+  const nh = NODE_H;
+  if (wx >= n.x && wx <= n.x + n.w && wy >= n.y - nh/2 && wy <= n.y + nh/2) return n;
+  for (const c of n.children) { const r = hitTestNode(c, wx, wy); if (r) return r; }
+  return null;
+}
+
+function focusOnNode(n) {
+  camX = n.x + n.w / 2;
+  camY = n.y;
+  zoom = 1.0;
+  render();
+}
+
+function fitScreen() {
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  function walk(n) {
+    minX = Math.min(minX, n.x); maxX = Math.max(maxX, n.x + n.w);
+    minY = Math.min(minY, n.y - NODE_H/2); maxY = Math.max(maxY, n.y + NODE_H/2);
+    for (const c of n.children) walk(c);
+  }
+  walk(rootNode);
+  const tw = maxX - minX, th = maxY - minY;
+  if (tw <= 0 || th <= 0) return;
+  zoom = Math.min((W - 80) / tw, (H - 80) / th, 2);
+  camX = minX + tw / 2;
+  camY = minY + th / 2;
+  render();
+}
+
+const tooltip = document.getElementById("tooltip");
+function showTooltip(n, sx, sy) {
+  if (!hasAnyChildren(n)) { tooltip.style.display = "none"; return; }
+  const allCh = n._children || n.children;
+  tooltip.textContent = n.depth === 0 ? allCh.length + " 个一级页面" : countDesc(n) + " 个子页面";
+  tooltip.style.display = "block";
+  tooltip.style.left = (sx + 12) + "px";
+  tooltip.style.top = (sy - 28) + "px";
+}
+
+function init() {
+  cvs = document.getElementById("cv");
+  ctx = cvs.getContext("2d");
+  mCtx = document.createElement("canvas").getContext("2d");
+  resize();
+  window.addEventListener("resize", () => { resize(); layout(rootNode); render(); });
+  rootNode = buildTree(RAW, null, 0);
+  assignColors(rootNode);
+  layout(rootNode);
+  updateStats();
+  camX = rootNode.x + rootNode.w / 2 + 200;
+  camY = rootNode.y;
+  zoom = 1.0;
+  render();
+
+  const wrap = document.getElementById("canvas-wrap");
+  wrap.addEventListener("mousedown", (e) => {
+    if (e.button === 0) {
+      dragging = true;
+      dragStartX = e.clientX; dragStartY = e.clientY;
+      camStartX = camX; camStartY = camY;
+      wrap.classList.add("grabbing");
+    }
+  });
+  window.addEventListener("mousemove", (e) => {
+    if (dragging) {
+      camX = camStartX - (e.clientX - dragStartX) / zoom;
+      camY = camStartY - (e.clientY - dragStartY) / zoom;
+      render();
+    } else {
+      const rect = cvs.getBoundingClientRect();
+      const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+      const n = hitTest(sx, sy);
+      if (n !== hoveredNode) {
+        hoveredNode = n;
+        cvs.style.cursor = n ? "pointer" : "";
+        if (n) showTooltip(n, e.clientX, e.clientY);
+        else tooltip.style.display = "none";
+        render();
+      } else if (n) {
+        tooltip.style.left = (e.clientX + 12) + "px";
+        tooltip.style.top = (e.clientY - 28) + "px";
+      }
+    }
+  });
+  window.addEventListener("mouseup", (e) => {
+    if (!dragging) return;
+    dragging = false;
+    wrap.classList.remove("grabbing");
+    const moved = Math.abs(e.clientX - dragStartX) + Math.abs(e.clientY - dragStartY);
+    if (moved < 4 && e.button === 0) {
+      const rect = cvs.getBoundingClientRect();
+      const n = hitTest(e.clientX - rect.left, e.clientY - rect.top);
+      if (n) {
+        if (e.ctrlKey || e.metaKey) { if (n.link) window.open(n.link, "_blank"); }
+        else { const ox = n.x, oy = n.y; toggleNode(n); camX += n.x - ox; camY += n.y - oy; render(); }
+      }
+    }
+  });
+  wrap.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const rect = cvs.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const wx = (mx - W/2) / zoom + camX, wy = (my - H/2) / zoom + camY;
+    const newZoom = Math.max(0.05, Math.min(4, zoom + (e.deltaY > 0 ? -0.05 : 0.05)));
+    camX = wx - (mx - W/2) / newZoom;
+    camY = wy - (my - H/2) / newZoom;
+    zoom = newZoom;
+    render();
+  }, { passive: false });
+  wrap.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    const rect = cvs.getBoundingClientRect();
+    const n = hitTest(e.clientX - rect.left, e.clientY - rect.top);
+    if (n) {
+      ctxTarget = n;
+      const menu = document.getElementById("ctx-menu");
+      document.getElementById("ctx-copy").style.display = n.link ? "" : "none";
+      menu.style.display = "block";
+      menu.style.left = e.clientX + "px";
+      menu.style.top = e.clientY + "px";
+      const mr = menu.getBoundingClientRect();
+      if (mr.right > window.innerWidth) menu.style.left = (e.clientX - mr.width) + "px";
+      if (mr.bottom > window.innerHeight) menu.style.top = (e.clientY - mr.height) + "px";
+    }
+  });
+  document.addEventListener("click", () => { document.getElementById("ctx-menu").style.display = "none"; });
+  document.getElementById("ctx-copy").addEventListener("click", () => {
+    if (ctxTarget && ctxTarget.link) navigator.clipboard.writeText(ctxTarget.link).catch(() => prompt("Copy:", ctxTarget.link));
+  });
+  document.getElementById("ctx-focus").addEventListener("click", () => { if (ctxTarget) focusOnNode(ctxTarget); });
+  document.getElementById("btn-reset").addEventListener("click", () => {
+    collapseToLevel(rootNode, 2);
+    layout(rootNode);
+    camX = rootNode.x + rootNode.w / 2 + 200;
+    camY = rootNode.y;
+    zoom = 1.0;
+    render();
+  });
+  document.getElementById("btn-fit").addEventListener("click", fitScreen);
+  document.getElementById("btn-expand").addEventListener("click", () => { expandAll(rootNode); layout(rootNode); fitScreen(); });
+  document.getElementById("btn-collapse").addEventListener("click", () => { collapseToLevel(rootNode, 1); layout(rootNode); fitScreen(); });
+  const searchBox = document.getElementById("search-box");
+  searchBox.addEventListener("input", () => doSearch(searchBox.value));
+  searchBox.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") nextSearchResult();
+    if (e.key === "Escape") { searchBox.value = ""; searchResults = []; searchIdx = -1; searchBox.blur(); render(); }
+  });
+  document.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "f") { e.preventDefault(); searchBox.focus(); searchBox.select(); }
+  });
+}
+
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  W = window.innerWidth;
+  H = window.innerHeight - 48;
+  cvs.width = W * dpr;
+  cvs.height = H * dpr;
+  cvs.style.width = W + "px";
+  cvs.style.height = H + "px";
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function updateStats() {
+  let maxD = 0;
+  for (const n of nodes) if (n.depth > maxD) maxD = n.depth;
+  document.getElementById("stats").textContent = nodes.length + " 个页面 | 最大 " + maxD + " 层";
+}
+
+window.addEventListener("DOMContentLoaded", init);
+</script>
+<div id="footer"><a href="https://github.com/infniu/notion-to-mindmap" target="_blank">Powered by infniu with Ai</a></div>
+</body>
+</html>
