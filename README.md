@@ -1,16 +1,22 @@
-# Notion Mind Map — Reference
+# Notion Mind Map
+
+[Live Demo](https://infniu.github.io/notion-to-mindmap/) | [Qoder Skill](https://clawhub.ai) | [GitHub](https://github.com/infniu/notion-to-mindmap)
+
+---
+
+将 Notion 导出的 HTML 文件转换为可交互的思维导图，支持右键跳转到 Notion 页面。
+
+## 快速使用
+
+1. 从 Notion 导出 HTML
+2. 发送 `index.html` 给 Qoder
+3. 获得 `mindmap.html` 直接打开
 
 ## Notion 链接格式
-
-每个页面的链接由工作空间 URL + 32 位页面 UUID 组成：
 
 ```
 https://www.notion.so/<workspace>/<page-id-32chars>
 ```
-
-示例：`https://www.notion.so/workspace/abc123def456789...`
-
-UUID 从 HTML 中的 `<ul id="id::xxxx-xxxx-xxxx">` 属性提取，去掉连字符。
 
 ## 层级定义
 
@@ -62,11 +68,6 @@ Notion 导出的 HTML 中，每个数据库页面会生成两个条目：
 | 展开全部 | 展开所有层级 |
 | 折叠全部 | 仅显示到第 1 级 |
 
-### 提示信息
-
-- **鼠标悬停父节点**：显示子页面数量（tooltip）
-- **右下角**：当前缩放比例
-
 ## 视觉风格
 
 - **暗色主题**：深蓝色背景（#1a1a2e）
@@ -88,12 +89,6 @@ pip install beautifulsoup4
 | `build_mindmap.py` | 解析 HTML → 生成 `mindmap_data.json` |
 | `generate_html.py` | 读取 JSON → 生成自包含 `mindmap.html` |
 
-## 自定义
+---
 
-如需修改 Notion 链接基础地址：
-
-```bash
-python build_mindmap.py index.html https://www.notion.so/yourworkspace/
-```
-
-如需修改分支颜色，编辑 `generate_html.py` 中的 `BRANCH_COLORS` 数组。
+🤖 Generated with [Qoder](https://qoder.com)
